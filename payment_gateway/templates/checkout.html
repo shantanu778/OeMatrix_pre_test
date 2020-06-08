@@ -1,0 +1,117 @@
+{% load staticfiles %}
+<!DOCTYPE html>
+<head>
+    <script src="https://js.braintreegateway.com/web/dropin/1.18.0/js/dropin.min.js"></script>
+</head>
+
+<body>
+    <div id="paypal-button-container"></div>
+    <form autocomplete="off">
+        {% if braintree_error %}
+          <div class="alert alert-danger fade in">
+              <button class="close" data-dismiss="alert">&times;</button>
+              {{ braintree_error|safe }}
+          </div>
+        {% endif %}
+        <div class="braintree-notifications"></div>
+        <div id="braintree-dropin"></div>
+        <br>
+        <div>Price: {{ price }}</div>
+        <br>
+        
+
+        <input style="background-color: #0783ca" id="submit-button" class="btn btn-success btn-lg btn-block" type="button" value="Pay with Credit or Debit Card" />
+    </form>
+
+    <script
+          src="https://code.jquery.com/jquery-3.4.1.min.js"
+          integrity="sha256-CSXorXvZcTkaix6Yvo6HppcZGetbYMGWSFlBw8HfCJo="
+          crossorigin="anonymous">
+    </script>
+    <script src="https://www.paypal.com/sdk/js?client-id=AXNclsBIzXrqweW4iT3fKi1nAtDKJktE3h6Qql1q2bq2O8h1yUqOtZSbLrkF0CVI3UixPN7fxsnK6GTH&currency=USD&disable-funding=credit,card"></script>
+
+    <script>
+        var braintree_client_token = "{{ braintree_client_token }}";
+        var button = document.querySelector('#submit-button');
+    
+        braintree.dropin.create({
+          authorization: braintree_client_token,
+          container: '#braintree-dropin',
+          card: {
+            cardholderName: {
+                required: false
+            }
+          }
+        }, function (createErr, instance) {
+            button.addEventListener('click', function () {
+                instance.requestPaymentMethod(function (err, payload) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '{% url "payment:payment" %}',
+                        data: {'paymentMethodNonce': payload.nonce,
+                                'csrfmiddlewaretoken': '{{ csrf_token }}',
+                                'price':'{{ price }}'}
+                    }).done(function (data) {
+                        if(data.message==1){
+                            alert("Payment Received Successfully....");
+                        } 
+                        
+                    });
+                });
+            });
+        });
+    </script>
+    
+    <script>
+
+        function getCookie(name) {
+           var cookieValue = null;
+           if (document.cookie && document.cookie !== '') {
+               var cookies = document.cookie.split(';');
+               for (var i = 0; i < cookies.length; i++) {
+                   var cookie = cookies[i].trim();
+                   // Does this cookie string begin with the name we want?
+                   if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                       cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                       break;
+                   }
+               }
+           }
+           return cookieValue;
+       }
+       var csrftoken = getCookie('csrftoken');
+
+        var total = '{{product.price}}'
+        var productId = '{{product.id}}'
+
+        
+
+
+       // Render the PayPal button into #paypal-button-container
+       paypal.Buttons({
+
+           // Set up the transaction
+           createOrder: function(data, actions) {
+               return actions.order.create({
+                   purchase_units: [{ 
+                       amount: {
+                           value: '{{price}}'
+                       }
+                   }]
+               });
+           },
+
+           // Finalize the transaction
+           onApprove: function(data, actions) {
+               return actions.order.capture().then(function(details) {
+                   // Show a success message to the buyer
+                   //completeOrder()
+                   alert('Transaction completed by ' + details.payer.name.given_name + '!');
+               });
+           }
+
+
+       }).render('#paypal-button-container');
+   </script>
+
+</body>
